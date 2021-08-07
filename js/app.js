@@ -20,14 +20,23 @@ let move = {
   turn: 0
 }
 
+let colliders = [] //碰撞物
+let debugMaterial = new THREE.MeshBasicMaterial({
+  color:0xff0000,
+  wireframe: true
+})
+
+let arrowHelper1, arrowHelper2
+
 function init() {
   createScene()
   createObjects()
+  createColliders()
   createPlayer()
   createCamera()
   createLights()
   //createLightHelpers()
-  createControls()
+  //createControls()
   createEvents()
   render()
 }
@@ -35,6 +44,25 @@ function init() {
 function createEvents() {
   document.addEventListener('keydown', onKeyDown)
 	document.addEventListener('keyup', onKeyUp)
+}
+
+function createColliders() {
+  const loader = new THREE.GLTFLoader()
+  loader.load(
+    'model/collider.glb',
+    gltf => {
+      gltf.scene.traverse(child => {
+        if(child.name.includes('collider')) {
+          colliders.push(child)
+        }
+      })
+      colliders.forEach(item=> {
+        item.visible = false
+        scene.add(item)
+      })
+    }
+  )
+  
 }
 
 function onKeyDown(event) {
@@ -96,6 +124,7 @@ function createPlayer() {
     wireframe: true
   })
   player = new THREE.Mesh(geometry, material)
+  player.name = 'player'
   geometry.translate(0, 1, 0)
   player.position.set(-5, 0, 5)
   //scene.add(player)
@@ -191,7 +220,7 @@ function createLightHelpers() {
 }
 
 function createControls() {
-  //controls = new THREE.OrbitControls(camera, renderer.domElement)
+  controls = new THREE.OrbitControls(camera, renderer.domElement)
 }
 
 
@@ -280,14 +309,65 @@ function update(dt) {
 }
 
 function updatePlayer(dt) {
-  if(move.forward !== 0) { 
-    if (move.forward > 0) {
-      console.log('dd')
-      player.translateZ(-dt * speed)
-    } else {
-      player.translateZ(dt * speed * 0.5)
+
+  const pos = player.position.clone()
+  pos.y += 2
+  let dir = new THREE.Vector3()
+ 
+  player.getWorldDirection(dir)
+  dir.negate()
+
+  if (move.forward < 0) dir.negate()
+  let raycaster = new THREE.Raycaster(pos, dir)
+  let blocked = false
+
+  if(colliders.length > 0) {
+    const intersect = raycaster.intersectObjects(colliders)
+    if (intersect.length > 0) {
+      if (intersect[0].distance < 1) {
+        blocked = true
+      }
     }
   }
+
+  if(colliders.length > 0) {
+    //左方向碰撞监测
+    dir.set(-1, 0, 0)
+    dir.applyMatrix4(player.matrix)
+    dir.normalize()
+    raycaster = new THREE.Raycaster(pos, dir)
+
+    let intersect = raycaster.intersectObjects(colliders)
+    if(intersect.length > 0) {
+      if(intersect[0].distance < 2) {
+        player.translateX(2 - intersect[0].distance)
+      }
+    }
+
+    //右方向碰撞监测
+    dir.set(1, 0, 0)
+    dir.applyMatrix4(player.matrix)
+    dir.normalize()
+    raycaster = new THREE.Raycaster(pos, dir)
+
+    intersect = raycaster.intersectObjects(colliders)
+    if(intersect.length > 0) {
+      if(intersect[0].distance < 2) {
+        player.translateX(intersect[0].distance - 2)
+      }
+    }
+  }
+  
+  if(!blocked) {
+    if(move.forward !== 0) { 
+      if (move.forward > 0) {
+        player.translateZ(-dt * speed)
+      } else {
+        player.translateZ(dt * speed * 0.5)
+      }
+    }
+  }
+
   if(move.turn !== 0) {
     player.rotateY(move.turn * dt)
   }

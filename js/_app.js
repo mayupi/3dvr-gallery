@@ -12,31 +12,23 @@ let ambientLight
 let clock = new THREE.Clock()
 
 
-let raycaster
-const objects = []
-
-/*
- * 控制参数
- */
-let moveForward = false
-let moveBackward = false
-let moveLeft = false
-let moveRight = false
-let canJump = false
-
-let prevTime = performance.now()
-const velocity = new THREE.Vector3()
-const direction = new THREE.Vector3()
-const vertex = new THREE.Vector3()
-const color = new THREE.Color()
+let player, activeCamera
+let speed = 6 //移动速度
+let turnSpeed = 2
+let move = {
+  forward: 0,
+  turn: 0
+}
 
 function init() {
   createScene()
   createObjects()
+  createColliders()
+  createPlayer()
+  createCamera()
   createLights()
   //createLightHelpers()
   createControls()
-  createRaycasts()
   createEvents()
   render()
 }
@@ -46,31 +38,40 @@ function createEvents() {
 	document.addEventListener('keyup', onKeyUp)
 }
 
+function createColliders() {
+  const loader = new THREE.GLTFLoader()
+  loader.load(
+    'model/collider.glb',
+    gltf => {
+      gltf.scene.traverse(child => {
+        console.log(child)
+      })
+    }
+  )
+}
+
 function onKeyDown(event) {
   switch ( event.code ) {
     case 'ArrowUp':
     case 'KeyW':
-      moveForward = true
+      move.forward = 1
       break
 
     case 'ArrowLeft':
     case 'KeyA':
-      moveLeft = true
+      move.turn = turnSpeed
       break
 
     case 'ArrowDown':
     case 'KeyS':
-      moveBackward = true
+      move.forward = -1
       break
 
     case 'ArrowRight':
     case 'KeyD':
-      moveRight = true
+      move.turn = -turnSpeed
       break
-
     case 'Space':
-      if ( canJump === true ) velocity.y += 350
-      canJump = false
       break
   }
 }
@@ -80,25 +81,47 @@ function onKeyUp(event) {
 
     case 'ArrowUp':
     case 'KeyW':
-      moveForward = false
+      move.forward = 0
       break
 
     case 'ArrowLeft':
     case 'KeyA':
-      moveLeft = false
+      move.turn = 0
       break
 
     case 'ArrowDown':
     case 'KeyS':
-      moveBackward = false
+      move.forward = 0
       break
 
     case 'ArrowRight':
     case 'KeyD':
-      moveRight = false
+      move.turn = 0
       break
 
   }
+}
+
+function createPlayer() {
+  const geometry = new THREE.BoxGeometry(1, 2, 1)
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xff0000,
+    wireframe: true
+  })
+  player = new THREE.Mesh(geometry, material)
+  geometry.translate(0, 1, 0)
+  player.position.set(-5, 0, 5)
+  //scene.add(player)
+}
+
+function createCamera() {
+  const back = new THREE.Object3D()
+  back.position.set(0, 2, 1)
+  back.parent = player
+  //player.add(back)
+  
+  activeCamera = back
+  
 }
 
 function createScene() {
@@ -111,7 +134,7 @@ function createScene() {
   // renderer.shadowMap.enabled = true
   // renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000)
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000)
   camera.position.set(-10, 2, 10)
 
   scene = new THREE.Scene()
@@ -182,15 +205,8 @@ function createLightHelpers() {
 
 function createControls() {
   //controls = new THREE.OrbitControls(camera, renderer.domElement)
-  //controls = new THREE.PointerLockControls(camera, document.body)
-  controls = new THREE.FirstPersonControls(camera, renderer.domElement)
-  controls.lookSpeed = 0.1
-  controls.movementSpeed = 5
 }
 
-function createRaycasts() {
-  raycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10)
-}
 
 function createObjects() {
   const loader = new THREE.GLTFLoader()
@@ -206,9 +222,11 @@ function createObjects() {
             initStairs(child)
             break
         }
+        //设置展画边框贴图
         if(child.name.includes('paint')) {
           initFrames(child)
         }
+        //设置展画图片贴图
         if(child.name.includes('draw')) {
           initDraws(child)
         }
@@ -263,58 +281,42 @@ function onResize() {
 
 
 function render() {
-  window.requestAnimationFrame(render)
-  const delta = clock.getDelta()
-  controls.update(delta)
-  //update()
+  const dt = clock.getDelta()
+  update(dt)
   renderer.render(scene, camera)
- 
+  window.requestAnimationFrame(render)
 }
 
-function update() {
+function update(dt) {
+  updatePlayer(dt)
+  updateCamera(dt)
+}
 
-  const time = performance.now()
-  if (controls.isLocked) {
-    raycaster.ray.origin.copy(controls.getObject().position)
-    raycaster.ray.origin.y -= 10
-
-    const intersections = raycaster.intersectObjects(objects)
-
-    const onObject = intersections.length > 0
-
-    const delta = (time - prevTime) / 1000
-
-    velocity.x -= velocity.x * 10.0 * delta
-    velocity.z -= velocity.z * 10.0 * delta
-
-    velocity.y -= 9.8 * 100.0 * delta
-
-    direction.z = Number(moveForward) - Number(moveBackward)
-    direction.x = Number(moveRight) - Number(moveLeft)
-    direction.normalize()
-
-    if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta
-    if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta
-
-    if (onObject === true) {
-      velocity.y = Math.max(0, velocity.y)
-      canJump = true
+function updatePlayer(dt) {
+  if(move.forward !== 0) { 
+    if (move.forward > 0) {
+      console.log('dd')
+      player.translateZ(-dt * speed)
+    } else {
+      player.translateZ(dt * speed * 0.5)
     }
-
-    controls.moveRight(-velocity.x * delta)
-    controls.moveForward(-velocity.z * delta)
-
-
-    controls.getObject().position.y += (velocity.y * delta)
-
-    if (controls.getObject().position.y < 10) {
-      velocity.y = 0
-      controls.getObject().position.y = 2
-      canJump = true
-    }
-
   }
-  prevTime = time
+  if(move.turn !== 0) {
+    player.rotateY(move.turn * dt)
+  }
+}
+
+function updateCamera(dt) {
+  //更新摄像机
+camera.position.lerp(
+  activeCamera.getWorldPosition(
+    new THREE.Vector3()
+  ), 
+  0.05
+)
+	const pos = player.position.clone()
+  pos.y += 2
+	camera.lookAt(pos)
 }
 
 init()
