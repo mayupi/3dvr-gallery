@@ -27,6 +27,7 @@ let debugMaterial = new THREE.MeshBasicMaterial({
 })
 
 let arrowHelper1, arrowHelper2
+let joystick //移动设备控制器
 
 function init() {
   createScene()
@@ -38,7 +39,21 @@ function init() {
   //createLightHelpers()
   //createControls()
   createEvents()
+  createJoyStick()
   render()
+}
+
+function createJoyStick() {
+  
+  joystick = new JoyStick({
+    onMove: function(forward, turn) {
+      turn = -turn
+      if(Math.abs(forward) < 0.3) forward = 0
+      if(Math.abs(turn) < 0.1) turn = 0
+      move.forward = forward
+      move.turn = turn
+    }
+  })
 }
 
 function createEvents() {
@@ -135,14 +150,12 @@ function createCamera() {
   back.position.set(0, 2, 1)
   back.parent = player
   //player.add(back)
-  
   activeCamera = back
-  
 }
 
 function createScene() {
   renderer = new THREE.WebGLRenderer({
-    antialias: true
+    antialias: false
   })
   renderer.outputEncoding = THREE.sRGBEncoding
   renderer.setSize(window.innerWidth, window.innerHeight)
@@ -150,7 +163,7 @@ function createScene() {
   // renderer.shadowMap.enabled = true
   // renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000)
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000)
   camera.position.set(-10, 2, 10)
 
   scene = new THREE.Scene()
@@ -270,7 +283,6 @@ function initFrames(child) {
 }
 
 function initStairs(child) {
-  child.castShadow = true
   child.material = new THREE.MeshStandardMaterial({
     color: 0xd1cdb7
   })
@@ -279,7 +291,6 @@ function initStairs(child) {
 }
 
 function initWalls(child) {
-  child.receiveShadow = true
   child.material = new THREE.MeshStandardMaterial({
     color: 0xffffff
   })
@@ -294,7 +305,6 @@ function onResize() {
   camera.updateProjectionMatrix()
   renderer.setSize(w, h)
 }
-
 
 function render() {
   const dt = clock.getDelta()
@@ -330,33 +340,33 @@ function updatePlayer(dt) {
     }
   }
 
-  if(colliders.length > 0) {
-    //左方向碰撞监测
-    dir.set(-1, 0, 0)
-    dir.applyMatrix4(player.matrix)
-    dir.normalize()
-    raycaster = new THREE.Raycaster(pos, dir)
+  // if(colliders.length > 0) {
+  //   //左方向碰撞监测
+  //   dir.set(-1, 0, 0)
+  //   dir.applyMatrix4(player.matrix)
+  //   dir.normalize()
+  //   raycaster = new THREE.Raycaster(pos, dir)
 
-    let intersect = raycaster.intersectObjects(colliders)
-    if(intersect.length > 0) {
-      if(intersect[0].distance < 2) {
-        player.translateX(2 - intersect[0].distance)
-      }
-    }
+  //   let intersect = raycaster.intersectObjects(colliders)
+  //   if(intersect.length > 0) {
+  //     if(intersect[0].distance < 2) {
+  //       player.translateX(2 - intersect[0].distance)
+  //     }
+  //   }
 
-    //右方向碰撞监测
-    dir.set(1, 0, 0)
-    dir.applyMatrix4(player.matrix)
-    dir.normalize()
-    raycaster = new THREE.Raycaster(pos, dir)
+  //   //右方向碰撞监测
+  //   dir.set(1, 0, 0)
+  //   dir.applyMatrix4(player.matrix)
+  //   dir.normalize()
+  //   raycaster = new THREE.Raycaster(pos, dir)
 
-    intersect = raycaster.intersectObjects(colliders)
-    if(intersect.length > 0) {
-      if(intersect[0].distance < 2) {
-        player.translateX(intersect[0].distance - 2)
-      }
-    }
-  }
+  //   intersect = raycaster.intersectObjects(colliders)
+  //   if(intersect.length > 0) {
+  //     if(intersect[0].distance < 2) {
+  //       player.translateX(intersect[0].distance - 2)
+  //     }
+  //   }
+  // }
   
   if(!blocked) {
     if(move.forward !== 0) { 
@@ -375,14 +385,14 @@ function updatePlayer(dt) {
 
 function updateCamera(dt) {
   //更新摄像机
-camera.position.lerp(
-  activeCamera.getWorldPosition(
-    new THREE.Vector3()
-  ), 
-  0.05
-)
+  camera.position.lerp(
+    activeCamera.getWorldPosition(
+      new THREE.Vector3()
+    ), 
+    0.08
+  )
 	const pos = player.position.clone()
-  pos.y += 2
+  pos.y += 2 
 	camera.lookAt(pos)
 }
 
